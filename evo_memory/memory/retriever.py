@@ -85,6 +85,7 @@ class EmbeddingRetriever(Retriever):
         model_name: str = "BAAI/bge-base-en-v1.5",
         device: Optional[str] = None,
         cache_embeddings: bool = True,
+        top_k: int = 4,
     ):
         """
         Initialize embedding retriever.
@@ -93,10 +94,12 @@ class EmbeddingRetriever(Retriever):
             model_name: Name of the sentence transformer model
             device: Device to use (cuda, cpu, or None for auto)
             cache_embeddings: Whether to cache computed embeddings
+            top_k: Default number of entries to retrieve
         """
         self.model_name = model_name
         self.device = device
         self.cache_embeddings = cache_embeddings
+        self.top_k = top_k
         self._model = None
         self._embedding_cache: Dict[str, List[float]] = {}
 
@@ -265,8 +268,9 @@ class RandomRetriever(Retriever):
 class RecencyRetriever(Retriever):
     """Retrieve most recent entries (for ExpRecent baseline)."""
 
-    def __init__(self, embedding_dim: int = 768):
+    def __init__(self, embedding_dim: int = 768, top_k: int = 4):
         self.embedding_dim = embedding_dim
+        self.top_k = top_k
 
     def encode(self, text: str) -> List[float]:
         """Generate placeholder embedding."""
