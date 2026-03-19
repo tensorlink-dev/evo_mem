@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# run_comparison.sh — Head-to-head comparison: Ganglion vs ExpRAG vs History baseline
+# run_comparison.sh — Head-to-head comparison: Ganglion vs ExpRAG vs History vs Zero-shot
 #
 # Usage:
 #   export CHUTES_API_KEY="cpk_..."
@@ -27,9 +27,22 @@ echo " Output: ${OUTPUT_BASE}"
 echo " Tasks:  ${TASK_LIMIT} | Streams: ${NUM_STREAMS}"
 echo "=========================================="
 
+# --- 0. Zero-shot Baseline (no memory) ---
+echo ""
+echo ">>> [1/4] Running Zero-shot baseline..."
+python -m evo_memory.main run \
+    --agent zeroshot \
+    --dataset mmlu_pro \
+    --backend chutes \
+    --model "deepseek-ai/DeepSeek-R1" \
+    --task-limit "${TASK_LIMIT}" \
+    --num-streams "${NUM_STREAMS}" \
+    --output-dir "${OUTPUT_BASE}/zeroshot" \
+    --seed 42
+
 # --- 1. Ganglion Agent (hybrid mode) ---
 echo ""
-echo ">>> [1/3] Running GanglionAgent (hybrid)..."
+echo ">>> [2/4] Running GanglionAgent (hybrid)..."
 python -m evo_memory.main run \
     --agent ganglion \
     --dataset mmlu_pro \
@@ -42,7 +55,7 @@ python -m evo_memory.main run \
 
 # --- 2. ExpRAG Baseline ---
 echo ""
-echo ">>> [2/3] Running ExpRAG baseline..."
+echo ">>> [3/4] Running ExpRAG baseline..."
 python -m evo_memory.main run \
     --agent exprag \
     --dataset mmlu_pro \
@@ -55,7 +68,7 @@ python -m evo_memory.main run \
 
 # --- 3. History Baseline (ExpRecent) ---
 echo ""
-echo ">>> [3/3] Running History baseline (ExpRecent)..."
+echo ">>> [4/4] Running History baseline (ExpRecent)..."
 python -m evo_memory.main run \
     --agent exprecent \
     --dataset mmlu_pro \

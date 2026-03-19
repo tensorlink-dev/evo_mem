@@ -25,6 +25,7 @@ from ..agents.langmem import LangMemAgent
 from ..agents.dynamic_cheatsheet import DynamicCheatsheetAgent
 from ..agents.awm import AWMAgent
 from ..agents.ganglion_agent import GanglionAgent
+from ..agents.zeroshot import ZeroShotAgent
 from ..datasets.base import BaseDataset
 from ..datasets.single_turn import (
     MMLUProDataset,
@@ -64,6 +65,7 @@ AGENT_REGISTRY: Dict[AgentType, Type[BaseAgent]] = {
     AgentType.DC_RS: DynamicCheatsheetAgent,
     AgentType.AWM: AWMAgent,
     AgentType.GANGLION: GanglionAgent,
+    AgentType.ZEROSHOT: ZeroShotAgent,
 }
 
 # Dataset registry
@@ -194,7 +196,9 @@ class ExperimentRunner:
 
     def _create_retriever(self):
         """Create retriever instance."""
-        if self.config.agent_type == AgentType.EXPRECENT:
+        if self.config.agent_type == AgentType.ZEROSHOT:
+            return RecencyRetriever(top_k=0)
+        elif self.config.agent_type == AgentType.EXPRECENT:
             return RecencyRetriever(top_k=self.config.retrieval_k)
         else:
             return EmbeddingRetriever(top_k=self.config.retrieval_k)

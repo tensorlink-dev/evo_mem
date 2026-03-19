@@ -34,6 +34,7 @@ class AgentType(Enum):
     EXPRAG = "exprag"
     REMEM = "remem"
     GANGLION = "ganglion"
+    ZEROSHOT = "zeroshot"
 
 
 class DatasetType(Enum):
