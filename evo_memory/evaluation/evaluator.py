@@ -24,7 +24,7 @@ from .metrics import (
     StreamMetrics,
     MetricType,
 )
-from ..agents.base import BaseAgent
+from ..agents.base import BaseAgent, AgentState
 from ..datasets.base import BaseDataset, TaskInstance, DatasetSplit, MultiTurnDataset
 from ..memory.base import Memory
 
@@ -217,7 +217,15 @@ class Evaluator:
 
             # Evolve memory with result
             is_correct = self.metric.compute(prediction, task.target) >= 0.5
-            self.agent.evolve(task.input_text, prediction, correct=is_correct)
+            state = AgentState(
+                task_id=task.task_id,
+                input_text=task.input_text,
+                memory=self.agent.memory,
+            )
+            state.final_output = prediction
+            state.is_successful = is_correct
+            state.is_complete = True
+            self.agent.evolve(state)
             trajectory.append({
                 "step": "evolve",
                 "correct": is_correct,
@@ -288,12 +296,15 @@ class Evaluator:
 
         # Evolve memory based on trajectory
         success = final_info.get("success", False)
-        self.agent.evolve(
-            task.input_text,
-            f"Steps: {step}, Success: {success}",
-            correct=success,
-            trajectory=trajectory,
+        state = AgentState(
+            task_id=task.task_id,
+            input_text=task.input_text,
+            memory=self.agent.memory,
         )
+        state.final_output = f"Steps: {step}, Success: {success}"
+        state.is_successful = success
+        state.is_complete = True
+        self.agent.evolve(state)
 
         # Compute score (success rate)
         score = 1.0 if success else final_info.get("progress", 0.0)
