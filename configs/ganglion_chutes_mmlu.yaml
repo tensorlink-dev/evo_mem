@@ -1,0 +1,20 @@
+name: ganglion_chutes_mmlu
+agent_type: ganglion
+dataset_type: mmlu_pro
+llm_backend: chutes
+model_name: "deepseek-ai/DeepSeek-R1"
+memory_size: 1000
+retrieval_k: 4
+num_streams: 3
+task_limit: 100
+output_dir: "./results"
+seed: 42
+dataset_split: test
+max_steps: 50
+save_trajectories: true
+verbose: true
+agent_kwargs:
+  hybrid_mode: true
+  db_path: ":memory:"
+  capability: "answering MMLU-Pro multiple choice questions"
+  store_successful_only: false

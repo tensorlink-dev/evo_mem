@@ -24,6 +24,7 @@ from ..agents.mem0 import Mem0Agent
 from ..agents.langmem import LangMemAgent
 from ..agents.dynamic_cheatsheet import DynamicCheatsheetAgent
 from ..agents.awm import AWMAgent
+from ..agents.ganglion_agent import GanglionAgent
 from ..datasets.base import BaseDataset
 from ..datasets.single_turn import (
     MMLUProDataset,
@@ -42,6 +43,7 @@ from ..llm.base import BaseLLM
 from ..llm.openai_llm import OpenAILLM
 from ..llm.anthropic_llm import AnthropicLLM
 from ..llm.google_llm import GoogleLLM
+from ..llm.chutes_llm import ChutesLLM
 from ..memory.base import Memory
 from ..memory.retriever import EmbeddingRetriever, RecencyRetriever
 
@@ -51,23 +53,25 @@ logger = logging.getLogger(__name__)
 # Agent registry
 AGENT_REGISTRY: Dict[AgentType, Type[BaseAgent]] = {
     AgentType.EXPRAG: ExpRAGAgent,
-    AgentType.EXP_RECENT: ExpRecentAgent,
+    AgentType.EXPRECENT: ExpRecentAgent,
     AgentType.REMEM: ReMemAgent,
     AgentType.REACT: ReActAgent,
     AgentType.AMEM: AmemAgent,
     AgentType.SELFRAG: SelfRAGAgent,
     AgentType.MEM0: Mem0Agent,
     AgentType.LANGMEM: LangMemAgent,
-    AgentType.DYNAMIC_CHEATSHEET: DynamicCheatsheetAgent,
+    AgentType.DC_CU: DynamicCheatsheetAgent,
+    AgentType.DC_RS: DynamicCheatsheetAgent,
     AgentType.AWM: AWMAgent,
+    AgentType.GANGLION: GanglionAgent,
 }
 
 # Dataset registry
 DATASET_REGISTRY: Dict[DatasetType, Type[BaseDataset]] = {
     DatasetType.MMLU_PRO: MMLUProDataset,
     DatasetType.GPQA: GPQADataset,
-    DatasetType.AIME24: AIMEDataset,
-    DatasetType.AIME25: AIMEDataset,
+    DatasetType.AIME_24: AIMEDataset,
+    DatasetType.AIME_25: AIMEDataset,
     DatasetType.TOOLBENCH: ToolBenchDataset,
     DatasetType.ALFWORLD: AlfWorldDataset,
     DatasetType.BABYAI: BabyAIDataset,
@@ -80,6 +84,7 @@ LLM_REGISTRY: Dict[LLMBackend, Type[BaseLLM]] = {
     LLMBackend.OPENAI: OpenAILLM,
     LLMBackend.ANTHROPIC: AnthropicLLM,
     LLMBackend.GOOGLE: GoogleLLM,
+    LLMBackend.CHUTES: ChutesLLM,
 }
 
 
@@ -189,7 +194,7 @@ class ExperimentRunner:
 
     def _create_retriever(self):
         """Create retriever instance."""
-        if self.config.agent_type == AgentType.EXP_RECENT:
+        if self.config.agent_type == AgentType.EXPRECENT:
             return RecencyRetriever(top_k=self.config.retrieval_k)
         else:
             return EmbeddingRetriever(top_k=self.config.retrieval_k)
@@ -204,11 +209,19 @@ class ExperimentRunner:
         memory = self._create_memory()
         retriever = self._create_retriever()
 
+        kwargs = dict(self.config.agent_kwargs)
+
+        # Ganglion-specific defaults
+        if self.config.agent_type == AgentType.GANGLION:
+            kwargs.setdefault("db_path", ":memory:")
+            kwargs.setdefault("capability", "general problem-solving")
+            kwargs.setdefault("store_successful_only", False)
+
         return agent_cls(
             llm=llm,
             memory=memory,
             retriever=retriever,
-            **self.config.agent_kwargs,
+            **kwargs,
         )
 
     def _create_dataset(self) -> BaseDataset:

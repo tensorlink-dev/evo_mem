@@ -45,6 +45,7 @@ from .agents import (
     LangMemAgent,
     DynamicCheatsheetAgent,
     AWMAgent,
+    GanglionAgent,
 )
 
 # Datasets
@@ -108,6 +109,7 @@ __all__ = [
     "LangMemAgent",
     "DynamicCheatsheetAgent",
     "AWMAgent",
+    "GanglionAgent",
     # Datasets
     "BaseDataset",
     "TaskInstance",

@@ -21,6 +21,12 @@ huggingface-hub>=0.17.0
 # Evaluation
 scikit-learn>=1.3.0
 
+# Ganglion biological memory system
+ganglion-memory
+
+# Optional: for result plotting
+matplotlib>=3.5.0
+
 # Optional: for development
 pytest>=7.0.0
 black>=23.0.0

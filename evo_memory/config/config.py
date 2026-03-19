@@ -14,6 +14,7 @@ class LLMBackend(Enum):
     ANTHROPIC = "anthropic"
     GOOGLE = "google"
     LOCAL = "local"
+    CHUTES = "chutes"
 
 
 class AgentType(Enum):
@@ -32,6 +33,7 @@ class AgentType(Enum):
     EXPRECENT = "exprecent"
     EXPRAG = "exprag"
     REMEM = "remem"
+    GANGLION = "ganglion"
 
 
 class DatasetType(Enum):

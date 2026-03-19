@@ -10,6 +10,7 @@ from .mem0 import Mem0Agent
 from .langmem import LangMemAgent
 from .dynamic_cheatsheet import DynamicCheatsheetAgent
 from .awm import AWMAgent
+from .ganglion_agent import GanglionAgent
 
 __all__ = [
     "BaseAgent",
@@ -25,4 +26,5 @@ __all__ = [
     "LangMemAgent",
     "DynamicCheatsheetAgent",
     "AWMAgent",
+    "GanglionAgent",
 ]
