@@ -235,9 +235,9 @@ class ExperimentRunner:
             kwargs["data_path"] = self.config.dataset_path
 
         # Handle AIME year variants
-        if self.config.dataset_type == DatasetType.AIME24:
+        if self.config.dataset_type == DatasetType.AIME_24:
             kwargs["year"] = 2024
-        elif self.config.dataset_type == DatasetType.AIME25:
+        elif self.config.dataset_type == DatasetType.AIME_25:
             kwargs["year"] = 2025
 
         return dataset_cls(**kwargs)
