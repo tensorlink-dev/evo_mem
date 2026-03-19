@@ -10,7 +10,7 @@ A fork of [Evo-Memory](https://github.com/zhaosnw/evo_mem) that adds:
 
 | Component | File | Description |
 |-----------|------|-------------|
-| Chutes LLM | `evo_memory/llm/chutes_llm.py` | OpenAI-compatible client pointed at `api.chutes.ai/v1` |
+| Chutes LLM | `evo_memory/llm/chutes_llm.py` | OpenAI-compatible client pointed at `llm.chutes.ai/v1` |
 | Ganglion Agent | `evo_memory/agents/ganglion_agent.py` | Hybrid agent: ganglion beliefs + Evo-Memory embedding retrieval |
 | Configs | `configs/*.yaml` | Ready-to-run configs for Ganglion, ExpRAG, History on MMLU-Pro |
 | Comparison runner | `scripts/run_comparison.sh` | Runs all 3 agents head-to-head |

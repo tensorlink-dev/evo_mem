@@ -14,7 +14,7 @@ from typing import List, Dict, Optional, Any
 from .base import BaseLLM, LLMResponse
 
 
-CHUTES_API_BASE = "https://api.chutes.ai/v1"
+CHUTES_API_BASE = "https://llm.chutes.ai/v1"
 
 
 class ChutesLLM(BaseLLM):
