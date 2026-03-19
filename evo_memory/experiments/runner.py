@@ -25,6 +25,7 @@ from ..agents.langmem import LangMemAgent
 from ..agents.dynamic_cheatsheet import DynamicCheatsheetAgent
 from ..agents.awm import AWMAgent
 from ..agents.ganglion_agent import GanglionAgent
+from ..agents.markdown_baseline import MarkdownBaselineAgent
 from ..datasets.base import BaseDataset
 from ..datasets.single_turn import (
     MMLUProDataset,
@@ -64,6 +65,7 @@ AGENT_REGISTRY: Dict[AgentType, Type[BaseAgent]] = {
     AgentType.DC_RS: DynamicCheatsheetAgent,
     AgentType.AWM: AWMAgent,
     AgentType.GANGLION: GanglionAgent,
+    AgentType.MARKDOWN: MarkdownBaselineAgent,
 }
 
 # Dataset registry
@@ -210,6 +212,13 @@ class ExperimentRunner:
         retriever = self._create_retriever()
 
         kwargs = dict(self.config.agent_kwargs)
+
+        # Markdown baseline - skip retriever, just needs window_size and path
+        if self.config.agent_type == AgentType.MARKDOWN:
+            md_path = str(Path(self.config.output_dir) / self.config.name / "memory.md")
+            kwargs.setdefault("markdown_path", md_path)
+            kwargs.setdefault("window_size", self.config.retrieval_k)
+            return agent_cls(llm=llm, memory=memory, **kwargs)
 
         # Ganglion-specific defaults
         if self.config.agent_type == AgentType.GANGLION:

@@ -34,6 +34,7 @@ class AgentType(Enum):
     EXPRAG = "exprag"
     REMEM = "remem"
     GANGLION = "ganglion"
+    MARKDOWN = "markdown"
 
 
 class DatasetType(Enum):
