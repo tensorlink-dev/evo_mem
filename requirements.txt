@@ -22,7 +22,7 @@ huggingface-hub>=0.17.0
 scikit-learn>=1.3.0
 
 # Ganglion biological memory system
-ganglion-memory
+ganglion @ git+https://github.com/TensorLink-AI/ganglion-memory.git
 
 # Optional: for result plotting
 matplotlib>=3.5.0

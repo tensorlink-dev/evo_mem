@@ -17,6 +17,7 @@ even when the package is not installed.
 """
 
 from typing import Tuple, Optional, List, Dict, Any
+import asyncio
 import logging
 
 from .base import BaseAgent, AgentState, AgentAction, ActionType
@@ -28,15 +29,28 @@ from ..llm import BaseLLM
 logger = logging.getLogger(__name__)
 
 
-def _import_ganglion():
-    """Lazy-import ganglion-memory and return the module."""
+def _run_sync(coro):
+    """Run an async coroutine synchronously."""
     try:
-        import ganglion_memory
-        return ganglion_memory
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        loop = None
+    if loop and loop.is_running():
+        import concurrent.futures
+        with concurrent.futures.ThreadPoolExecutor() as pool:
+            return pool.submit(asyncio.run, coro).result()
+    return asyncio.run(coro)
+
+
+def _import_ganglion():
+    """Lazy-import ganglion and return the memory sub-package."""
+    try:
+        from ganglion import memory as gm
+        return gm
     except ImportError:
         raise ImportError(
-            "ganglion-memory package is required for GanglionAgent. "
-            "Install with: pip install ganglion-memory"
+            "ganglion package is required for GanglionAgent. "
+            "Install with: pip install git+https://github.com/TensorLink-AI/ganglion-memory.git"
         )
 
 
@@ -121,14 +135,15 @@ class GanglionAgent(BaseAgent):
         self.ganglion_metrics: List[Dict[str, Any]] = []
 
         # Initialise ganglion memory system
-        self._ganglion = None
         self._init_ganglion()
 
     def _init_ganglion(self):
-        """Initialise the ganglion-memory system."""
+        """Initialise the ganglion memory system."""
         gm = _import_ganglion()
-        self._ganglion = gm.GanglionMemory(
-            db_path=self.db_path,
+        backend = gm.SqliteMemoryBackend(self.db_path)
+        self._ganglion_loop = gm.MemoryLoop(backend=backend)
+        self._ganglion_agent = gm.MemoryAgent(
+            memory=self._ganglion_loop,
             capability=self.capability,
         )
 
@@ -136,49 +151,33 @@ class GanglionAgent(BaseAgent):
     # Ganglion query helpers
     # ------------------------------------------------------------------
 
-    def _query_beliefs(self, query: str) -> Dict[str, List[str]]:
+    def _query_beliefs(self, query: str) -> str:
         """
         Query ganglion for relevant beliefs.
 
-        Returns dict with 'works' and 'fails' lists.
+        Returns a formatted context string from the MemoryAgent.
         """
-        beliefs = {"works": [], "fails": []}
         try:
-            result = self._ganglion.recall(query)
-            for belief in result:
-                text = belief.get("text", str(belief))
-                confidence = belief.get("confidence", 0.5)
-                if confidence >= 0.5:
-                    beliefs["works"].append(text)
-                else:
-                    beliefs["fails"].append(text)
+            return _run_sync(self._ganglion_agent.remember())
         except Exception as e:
             logger.debug(f"Ganglion recall failed (may be empty): {e}")
-        return beliefs
+            return ""
 
-    def _format_beliefs_context(self, beliefs: Dict[str, List[str]]) -> str:
+    def _format_beliefs_context(self, beliefs: str) -> str:
         """Format ganglion beliefs into a prompt section."""
-        parts = []
-        if beliefs["works"]:
-            items = beliefs["works"][:self.max_beliefs_in_prompt]
-            parts.append("STRATEGIES THAT HAVE WORKED:")
-            for i, b in enumerate(items, 1):
-                parts.append(f"  {i}. {b}")
-        if beliefs["fails"]:
-            items = beliefs["fails"][:self.max_beliefs_in_prompt]
-            parts.append("STRATEGIES THAT HAVE FAILED:")
-            for i, b in enumerate(items, 1):
-                parts.append(f"  {i}. {b}")
-        return "\n".join(parts)
+        return beliefs.strip() if beliefs else ""
 
     def _assimilate(self, query: str, output: str, success: bool):
         """Feed outcome back into ganglion for Hebbian learning."""
+        gm = _import_ganglion()
         try:
-            self._ganglion.assimilate(
-                task=query,
-                response=output,
-                success=success,
+            valence = gm.Valence.POSITIVE if success else gm.Valence.NEGATIVE
+            obs = gm.Observation(
+                capability=self.capability,
+                description=f"Task: {query}\nResponse: {output}",
+                valence=valence,
             )
+            _run_sync(self._ganglion_loop.assimilate(obs))
         except Exception as e:
             logger.warning(f"Ganglion assimilate failed: {e}")
 
@@ -189,18 +188,10 @@ class GanglionAgent(BaseAgent):
             "beliefs_injected": beliefs_injected,
         }
         try:
-            stats = self._ganglion.stats()
-            metrics["num_beliefs"] = stats.get("num_beliefs", 0)
-            metrics["num_contradictions"] = stats.get("num_contradictions", 0)
-            metrics["num_apoptosis"] = stats.get("num_apoptosis", 0)
-            metrics["confidence_distribution"] = stats.get(
-                "confidence_distribution", []
-            )
+            stats = _run_sync(self._ganglion_loop.summary())
+            metrics.update(stats)
         except Exception:
-            metrics["num_beliefs"] = 0
-            metrics["num_contradictions"] = 0
-            metrics["num_apoptosis"] = 0
-            metrics["confidence_distribution"] = []
+            pass
         self.ganglion_metrics.append(metrics)
 
     # ------------------------------------------------------------------
@@ -470,7 +461,7 @@ class GanglionAgent(BaseAgent):
         and evict weak ones.
         """
         try:
-            self._ganglion.forget()
+            _run_sync(self._ganglion_loop.forget())
         except Exception as e:
             logger.warning(f"Ganglion consolidation failed: {e}")
 
@@ -485,7 +476,7 @@ class GanglionAgent(BaseAgent):
         stats = super().get_statistics()
         stats["ganglion_metrics"] = self.ganglion_metrics
         try:
-            stats["ganglion_stats"] = self._ganglion.stats()
+            stats["ganglion_stats"] = _run_sync(self._ganglion_loop.summary())
         except Exception:
             stats["ganglion_stats"] = {}
         return stats
