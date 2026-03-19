@@ -208,10 +208,18 @@ class Evaluator:
                 "retrieved_count": len(retrieved),
             })
 
-            # Synthesize response
-            prediction = self.agent.synthesize(task.input_text, retrieved)
+            # Build context from retrieved memories
+            context = self.agent.synthesize(task.input_text, retrieved)
             trajectory.append({
                 "step": "synthesize",
+                "context_length": len(context),
+            })
+
+            # Generate prediction using LLM
+            response = self.agent.llm.generate(prompt=context)
+            prediction = self.agent.extract_answer(response.content)
+            trajectory.append({
+                "step": "generate",
                 "prediction": prediction,
             })
 
