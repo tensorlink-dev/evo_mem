@@ -5,7 +5,7 @@ decentralised GPU models (DeepSeek-R1, Llama, Qwen, etc.).
 
 Usage:
     export CHUTES_API_KEY="cpk_..."
-    llm = ChutesLLM(model_name="deepseek-ai/DeepSeek-R1")
+    llm = ChutesLLM(model_name="moonshotai/Kimi-K2.5-TEE")
 """
 
 import os
@@ -22,7 +22,7 @@ class ChutesLLM(BaseLLM):
 
     def __init__(
         self,
-        model_name: str = "deepseek-ai/DeepSeek-R1",
+        model_name: str = "moonshotai/Kimi-K2.5-TEE",
         api_key: Optional[str] = None,
         api_base: Optional[str] = None,
         **kwargs,
@@ -31,7 +31,7 @@ class ChutesLLM(BaseLLM):
         Initialize Chutes AI LLM.
 
         Args:
-            model_name: Model identifier on Chutes (e.g. deepseek-ai/DeepSeek-R1)
+            model_name: Model identifier on Chutes (e.g. moonshotai/Kimi-K2.5-TEE)
             api_key: Chutes API key (defaults to CHUTES_API_KEY env var)
             api_base: Optional custom API base URL (defaults to Chutes endpoint)
             **kwargs: Additional BaseLLM parameters

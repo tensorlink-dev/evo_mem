@@ -34,7 +34,7 @@ python -m evo_memory.main run \
     --agent zeroshot \
     --dataset mmlu_pro \
     --backend chutes \
-    --model "deepseek-ai/DeepSeek-R1" \
+    --model "moonshotai/Kimi-K2.5-TEE" \
     --task-limit "${TASK_LIMIT}" \
     --num-streams "${NUM_STREAMS}" \
     --output-dir "${OUTPUT_BASE}/zeroshot" \
@@ -47,7 +47,7 @@ python -m evo_memory.main run \
     --agent ganglion \
     --dataset mmlu_pro \
     --backend chutes \
-    --model "deepseek-ai/DeepSeek-R1" \
+    --model "moonshotai/Kimi-K2.5-TEE" \
     --task-limit "${TASK_LIMIT}" \
     --num-streams "${NUM_STREAMS}" \
     --output-dir "${OUTPUT_BASE}/ganglion" \
@@ -60,7 +60,7 @@ python -m evo_memory.main run \
     --agent exprag \
     --dataset mmlu_pro \
     --backend chutes \
-    --model "deepseek-ai/DeepSeek-R1" \
+    --model "moonshotai/Kimi-K2.5-TEE" \
     --task-limit "${TASK_LIMIT}" \
     --num-streams "${NUM_STREAMS}" \
     --output-dir "${OUTPUT_BASE}/exprag" \
@@ -73,7 +73,7 @@ python -m evo_memory.main run \
     --agent exprecent \
     --dataset mmlu_pro \
     --backend chutes \
-    --model "deepseek-ai/DeepSeek-R1" \
+    --model "moonshotai/Kimi-K2.5-TEE" \
     --task-limit "${TASK_LIMIT}" \
     --num-streams "${NUM_STREAMS}" \
     --output-dir "${OUTPUT_BASE}/history" \

@@ -3,7 +3,7 @@
 A fork of [Evo-Memory](https://github.com/zhaosnw/evo_mem) that adds:
 
 1. **Ganglion Agent** — plugs [ganglion-memory](https://github.com/tensorlink-dev/ganglion-memory)'s biological learning (Hebbian strengthening, apoptosis, lateral inhibition, salience gating, consolidation) into the Evo-Memory evaluation harness
-2. **Chutes AI Backend** — run evals cheaply on decentralised GPU via [Chutes](https://chutes.ai) (DeepSeek-R1, Llama, Qwen, etc.)
+2. **Chutes AI Backend** — run evals cheaply on decentralised GPU via [Chutes](https://chutes.ai) (Kimi-K2.5, Llama, Qwen, etc.)
 3. **Head-to-head comparison tooling** — scripts to run Ganglion vs ExpRAG vs History baseline and plot cumulative accuracy curves
 
 ## What This Fork Adds
@@ -34,7 +34,7 @@ python -m evo_memory.main run \
     --agent ganglion \
     --dataset mmlu_pro \
     --backend chutes \
-    --model "deepseek-ai/DeepSeek-R1" \
+    --model "moonshotai/Kimi-K2.5-TEE" \
     --task-limit 10
 
 # Full comparison: Ganglion vs ExpRAG vs History
@@ -148,7 +148,7 @@ name: ganglion_chutes_mmlu
 agent_type: ganglion
 dataset_type: mmlu_pro
 llm_backend: chutes
-model_name: "deepseek-ai/DeepSeek-R1"
+model_name: "moonshotai/Kimi-K2.5-TEE"
 num_streams: 3
 task_limit: 100
 agent_kwargs:
@@ -168,7 +168,7 @@ config = ExperimentConfig(
     agent_type=AgentType.GANGLION,
     dataset_type=DatasetType.MMLU_PRO,
     llm_backend=LLMBackend.CHUTES,
-    model_name="deepseek-ai/DeepSeek-R1",
+    model_name="moonshotai/Kimi-K2.5-TEE",
     num_streams=3,
     agent_kwargs={"hybrid_mode": True, "db_path": ":memory:"},
 )

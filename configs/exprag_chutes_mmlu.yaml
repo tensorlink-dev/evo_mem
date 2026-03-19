@@ -2,7 +2,7 @@ name: exprag_chutes_mmlu
 agent_type: exprag
 dataset_type: mmlu_pro
 llm_backend: chutes
-model_name: "deepseek-ai/DeepSeek-R1"
+model_name: "moonshotai/Kimi-K2.5-TEE"
 memory_size: 1000
 retrieval_k: 4
 num_streams: 3
