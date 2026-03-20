@@ -143,10 +143,13 @@ class GanglionAgent(BaseAgent):
         """Initialise the ganglion memory system."""
         gm = _import_ganglion()
         backend = gm.SqliteMemoryBackend(self.db_path)
-        self._ganglion_loop = gm.MemoryLoop(
-            backend=backend,
-            relevance_threshold=self.relevance_threshold,
-        )
+        # Pass relevance_threshold only if the installed ganglion supports it
+        import dataclasses
+        loop_fields = {f.name for f in dataclasses.fields(gm.MemoryLoop)}
+        loop_kwargs = {"backend": backend}
+        if "relevance_threshold" in loop_fields:
+            loop_kwargs["relevance_threshold"] = self.relevance_threshold
+        self._ganglion_loop = gm.MemoryLoop(**loop_kwargs)
         self._ganglion_agent = gm.MemoryAgent(
             memory=self._ganglion_loop,
             capability=self.capability,
