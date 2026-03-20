@@ -262,60 +262,32 @@ class Evaluator:
 
     def _evaluate_multi_turn(self, task: TaskInstance) -> TaskResult:
         """Evaluate multi-turn task with environment."""
-        # Get environment
         env = self.dataset.get_environment(task)
         env_info = self.dataset.get_environment_info(task)
 
-        # Initialize
-        observation = env.reset()
-        trajectory = []
-        total_reward = 0.0
-        done = False
-        step = 0
-        final_info = {"success": False, "progress": 0.0}
-
-        while not done and step < self.config.max_steps:
-            step += 1
-
-            # Search for relevant memories
-            context = f"{task.input_text}\n{observation}"
-            retrieved = self.agent.search(context)
-
-            # Synthesize action
-            action = self.agent.synthesize(
-                context,
-                retrieved,
-                environment_info=env_info,
-            )
-
-            trajectory.append({
-                "step": step,
-                "observation": observation,
-                "action": action,
-            })
-
-            # Execute action
-            observation, reward, done, info = env.step(action)
-            total_reward += reward
-            final_info = info
-
-            trajectory[-1]["reward"] = reward
-            trajectory[-1]["next_observation"] = observation
-
-        # Evolve memory based on trajectory
-        success = final_info.get("success", False)
-        state = AgentState(
+        # Delegate to the agent's run_multi_turn which properly calls the LLM
+        success, progress, state = self.agent.run_multi_turn(
             task_id=task.task_id,
-            input_text=task.input_text,
-            memory=self.agent.memory,
+            goal=task.input_text,
+            environment=env,
+            environment_info=env_info,
         )
-        state.final_output = f"Steps: {step}, Success: {success}"
-        state.is_successful = success
-        state.is_complete = True
-        self.agent.evolve(state)
 
-        # Compute score (success rate)
-        score = 1.0 if success else final_info.get("progress", 0.0)
+        score = 1.0 if success else progress
+        steps = len(state.action_history) if state.action_history else 1
+
+        # Build trajectory from state
+        trajectory = []
+        if self.config.save_trajectories:
+            for i, action in enumerate(state.action_history):
+                entry = {
+                    "step": i + 1,
+                    "action": action.content,
+                    "action_type": action.action_type.value if hasattr(action.action_type, 'value') else str(action.action_type),
+                }
+                if i < len(state.observations):
+                    entry["observation"] = state.observations[i]
+                trajectory.append(entry)
 
         return TaskResult(
             task_id=task.task_id,
@@ -324,12 +296,11 @@ class Evaluator:
             target=task.target,
             correct=success,
             score=score,
-            steps=step,
-            trajectory=trajectory if self.config.save_trajectories else [],
+            steps=steps,
+            trajectory=trajectory,
             memory_used=len(self.agent.memory) if self.agent.memory else 0,
             metadata={
-                "total_reward": total_reward,
-                "progress": final_info.get("progress", 0.0),
+                "progress": progress,
             },
         )
 
