@@ -113,6 +113,8 @@ class GanglionAgent(BaseAgent):
 
         # Ganglion learns from failures too
         store_successful_only = kwargs.pop("store_successful_only", False)
+        # Only forward kwargs that BaseAgent accepts
+        max_iterations = kwargs.pop("max_iterations", 10)
 
         super().__init__(
             llm=llm,
@@ -121,8 +123,8 @@ class GanglionAgent(BaseAgent):
             memory=memory,
             top_k=top_k,
             max_steps=max_steps,
+            max_iterations=max_iterations,
             store_successful_only=store_successful_only,
-            **kwargs,
         )
 
         self.hybrid_mode = hybrid_mode

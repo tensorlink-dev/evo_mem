@@ -52,6 +52,9 @@ class ReActAgent(BaseAgent):
 
         context_builder = context_builder or SimpleContextBuilder()
 
+        # Drop memory from kwargs — ReAct manages its own memory policy
+        kwargs.pop("memory", None)
+
         super().__init__(
             llm=llm,
             retriever=retriever,
