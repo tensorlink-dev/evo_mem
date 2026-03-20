@@ -288,7 +288,8 @@ class ExpRecentAgent(ExpRAGAgent):
             memory: Optional pre-initialized memory
             top_k: Number of recent experiences to retrieve
         """
-        # Use recency-based retriever
+        # Use recency-based retriever (drop any retriever passed by the runner)
+        kwargs.pop("retriever", None)
         retriever = RecencyRetriever()
 
         super().__init__(
