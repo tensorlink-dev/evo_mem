@@ -140,6 +140,17 @@ def setup_parser() -> argparse.ArgumentParser:
         default="./batch_results",
         help="Output directory",
     )
+    batch_parser.add_argument(
+        "--parallel",
+        action="store_true",
+        help="Run agent experiments concurrently",
+    )
+    batch_parser.add_argument(
+        "--max-workers",
+        type=int,
+        default=None,
+        help="Max parallel workers (default: number of configs)",
+    )
 
     # List agents command
     list_agents_parser = subparsers.add_parser("list-agents", help="List available agents")
@@ -233,7 +244,12 @@ def batch_command(args):
 
     base_config.output_dir = args.output_dir
 
-    runner = BatchExperimentRunner(base_config, variations)
+    runner = BatchExperimentRunner(
+        base_config,
+        variations,
+        parallel=args.parallel,
+        max_workers=args.max_workers,
+    )
     results = runner.run()
 
     print("\n" + "=" * 60)

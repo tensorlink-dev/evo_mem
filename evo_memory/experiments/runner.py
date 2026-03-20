@@ -340,12 +340,15 @@ class BatchExperimentRunner:
     Runner for batch experiments across multiple configurations.
 
     Useful for comparing multiple agents or datasets.
+    Supports parallel execution via concurrent.futures.
     """
 
     def __init__(
         self,
         base_config: ExperimentConfig,
         variations: Dict[str, List[Any]],
+        parallel: bool = False,
+        max_workers: Optional[int] = None,
     ):
         """
         Initialize batch runner.
@@ -353,9 +356,13 @@ class BatchExperimentRunner:
         Args:
             base_config: Base experiment configuration
             variations: Dictionary of parameter names to values to vary
+            parallel: Run experiments concurrently using ProcessPoolExecutor
+            max_workers: Max parallel workers (default: number of configs)
         """
         self.base_config = base_config
         self.variations = variations
+        self.parallel = parallel
+        self.max_workers = max_workers
         self.all_results: List[Dict[str, Any]] = []
 
     def generate_configs(self) -> List[ExperimentConfig]:
@@ -382,18 +389,41 @@ class BatchExperimentRunner:
 
         return configs
 
+    @staticmethod
+    def _run_single(config: ExperimentConfig) -> Dict[str, Any]:
+        """Run a single experiment (picklable for ProcessPoolExecutor)."""
+        runner = ExperimentRunner(config)
+        return runner.run()
+
     def run(self) -> List[Dict[str, Any]]:
-        """Run all experiments."""
+        """Run all experiments (sequentially or in parallel)."""
         configs = self.generate_configs()
-        logger.info(f"Running {len(configs)} experiment configurations")
+        logger.info(f"Running {len(configs)} experiment configurations (parallel={self.parallel})")
 
-        for idx, config in enumerate(configs):
-            logger.info(f"\n=== Experiment {idx + 1}/{len(configs)}: {config.name} ===")
+        if self.parallel and len(configs) > 1:
+            from concurrent.futures import ProcessPoolExecutor, as_completed
 
-            runner = ExperimentRunner(config)
-            result = runner.run()
-
-            self.all_results.append(result)
+            max_workers = self.max_workers or len(configs)
+            with ProcessPoolExecutor(max_workers=max_workers) as executor:
+                future_to_name = {
+                    executor.submit(self._run_single, cfg): cfg.name
+                    for cfg in configs
+                }
+                for future in as_completed(future_to_name):
+                    name = future_to_name[future]
+                    try:
+                        result = future.result()
+                        self.all_results.append(result)
+                        logger.info(f"Completed: {name}")
+                    except Exception as exc:
+                        logger.error(f"Experiment {name} failed: {exc}")
+                        self.all_results.append({"config": {"name": name}, "error": str(exc)})
+        else:
+            for idx, config in enumerate(configs):
+                logger.info(f"\n=== Experiment {idx + 1}/{len(configs)}: {config.name} ===")
+                runner = ExperimentRunner(config)
+                result = runner.run()
+                self.all_results.append(result)
 
         # Save summary
         self._save_summary()
