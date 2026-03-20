@@ -86,6 +86,7 @@ class GanglionAgent(BaseAgent):
         max_beliefs_in_prompt: int = 10,
         include_trajectory: bool = True,
         include_feedback: bool = True,
+        relevance_threshold: float = 0.5,
         **kwargs,
     ):
         """
@@ -130,6 +131,7 @@ class GanglionAgent(BaseAgent):
         self.max_beliefs_in_prompt = max_beliefs_in_prompt
         self.include_trajectory = include_trajectory
         self.include_feedback = include_feedback
+        self.relevance_threshold = relevance_threshold
 
         # Ganglion metrics (tracked per-stream for eval output)
         self.ganglion_metrics: List[Dict[str, Any]] = []
@@ -141,7 +143,10 @@ class GanglionAgent(BaseAgent):
         """Initialise the ganglion memory system."""
         gm = _import_ganglion()
         backend = gm.SqliteMemoryBackend(self.db_path)
-        self._ganglion_loop = gm.MemoryLoop(backend=backend)
+        self._ganglion_loop = gm.MemoryLoop(
+            backend=backend,
+            relevance_threshold=self.relevance_threshold,
+        )
         self._ganglion_agent = gm.MemoryAgent(
             memory=self._ganglion_loop,
             capability=self.capability,
