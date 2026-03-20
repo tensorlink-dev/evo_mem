@@ -15,7 +15,7 @@ TASK_LIMIT="${TASK_LIMIT:-100}"
 NUM_STREAMS="${NUM_STREAMS:-3}"
 PARALLEL="${PARALLEL:-1}"
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
-OUTPUT_BASE="results/comparison_${TIMESTAMP}"
+OUTPUT_BASE="results/scienceworld_${TIMESTAMP}"
 
 if [ -z "${CHUTES_API_KEY:-}" ]; then
     echo "ERROR: CHUTES_API_KEY is not set."
@@ -38,7 +38,7 @@ run_agent() {
     echo ">>> Starting ${label}..."
     python -m evo_memory.main run \
         --agent "${agent}" \
-        --dataset mmlu_pro \
+        --dataset scienceworld \
         --backend chutes \
         --model "moonshotai/Kimi-K2.5-TEE" \
         --task-limit "${TASK_LIMIT}" \
