@@ -86,7 +86,7 @@ class GanglionAgent(BaseAgent):
         max_beliefs_in_prompt: int = 10,
         include_trajectory: bool = True,
         include_feedback: bool = True,
-        relevance_threshold: float = 0.5,
+        relevance_threshold: float = 0.8,
         **kwargs,
     ):
         """
