@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# run_comparison.sh — Head-to-head comparison: Ganglion vs ExpRAG vs History vs Zero-shot
+# run_comparison.sh — Head-to-head comparison: Ganglion vs ExpRAG vs History
 #
 # Usage:
 #   export CHUTES_API_KEY="cpk_..."
@@ -72,16 +72,15 @@ launch() {
     fi
 }
 
-launch "[1/4] Zero-shot baseline"       zeroshot   zeroshot
-launch "[2/4] GanglionAgent (hybrid)"   ganglion   ganglion
-launch "[3/4] ExpRAG baseline"           exprag     exprag
-launch "[4/4] History baseline"          exprecent  history
+launch "[1/3] GanglionAgent (hybrid)"   ganglion   ganglion
+launch "[2/3] ExpRAG baseline"           exprag     exprag
+launch "[3/3] History baseline"          exprecent  history
 
 # Wait for all background jobs and collect exit codes
 FAILED=0
 if [ "${PARALLEL}" = "1" ]; then
     echo ""
-    echo "All 4 agents launched concurrently. Waiting..."
+    echo "All 3 agents launched concurrently. Waiting..."
     for i in "${!PIDS[@]}"; do
         if ! wait "${PIDS[$i]}"; then
             echo "FAILED: ${LABELS[$i]} — see ${LOGS[$i]}"
