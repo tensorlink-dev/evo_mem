@@ -46,10 +46,14 @@ setup(
         ],
         "anthropic": ["anthropic>=0.18.0"],
         "google": ["google-generativeai>=0.3.0"],
+        "ganglion": [
+            "ganglion @ git+https://github.com/TensorLink-AI/ganglion-memory.git",
+        ],
         "all": [
             "anthropic>=0.18.0",
             "google-generativeai>=0.3.0",
             "faiss-cpu>=1.7.0",
+            "ganglion @ git+https://github.com/TensorLink-AI/ganglion-memory.git",
         ],
     },
     entry_points={

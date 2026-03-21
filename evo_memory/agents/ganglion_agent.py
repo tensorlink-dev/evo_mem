@@ -19,6 +19,7 @@ even when the package is not installed.
 from typing import Tuple, Optional, List, Dict, Any
 import asyncio
 import logging
+import re
 
 from .base import BaseAgent, AgentState, AgentAction, ActionType
 from ..memory import Memory, MemoryEntry, Retriever, ContextBuilder
@@ -27,6 +28,26 @@ from ..memory.context import SimpleContextBuilder
 from ..llm import BaseLLM
 
 logger = logging.getLogger(__name__)
+
+
+def _extract_entities(text: str) -> tuple:
+    """Extract key noun-phrase tokens from text for ganglion entity matching.
+
+    Uses simple heuristics: lowercased alphanumeric tokens ≥3 chars,
+    excluding common stop words.  This feeds ganglion's Jaccard-based
+    similarity so beliefs about related concepts can be retrieved.
+    """
+    _STOP = frozenset({
+        "the", "and", "for", "are", "but", "not", "you", "all", "can",
+        "had", "her", "was", "one", "our", "out", "has", "his", "how",
+        "its", "may", "new", "now", "old", "see", "way", "who", "did",
+        "get", "let", "say", "she", "too", "use", "what", "with", "this",
+        "that", "from", "they", "been", "have", "many", "some", "them",
+        "than", "each", "make", "like", "into", "over", "such", "take",
+        "task", "action", "step", "turn", "response", "answer", "final",
+    })
+    tokens = re.findall(r"[a-z0-9]+", text.lower())
+    return tuple(t for t in dict.fromkeys(tokens) if len(t) >= 3 and t not in _STOP)
 
 
 def _run_sync(coro):
@@ -155,6 +176,8 @@ class GanglionAgent(BaseAgent):
         self._ganglion_agent = gm.MemoryAgent(
             memory=self._ganglion_loop,
             capability=self.capability,
+            bot_id="evo_mem",
+            context_limit=self.max_beliefs_in_prompt,
         )
 
     # ------------------------------------------------------------------
@@ -165,9 +188,13 @@ class GanglionAgent(BaseAgent):
         """
         Query ganglion for relevant beliefs.
 
+        Extracts entities from the query so that ganglion's Jaccard-
+        based similarity can match beliefs about related concepts.
         Returns a formatted context string from the MemoryAgent.
         """
         try:
+            # Set query-derived entities so context_for() filters by them
+            self._ganglion_agent.entities = _extract_entities(query)
             return _run_sync(self._ganglion_agent.remember())
         except Exception as e:
             logger.debug(f"Ganglion recall failed (may be empty): {e}")
@@ -185,19 +212,31 @@ class GanglionAgent(BaseAgent):
         *,
         metric_name: Optional[str] = None,
         metric_value: Optional[float] = None,
+        tags: tuple = (),
     ):
-        """Feed outcome back into ganglion for Hebbian learning."""
-        gm = _import_ganglion()
+        """Feed outcome back into ganglion via MemoryAgent.learn().
+
+        Uses learn() instead of raw MemoryLoop.assimilate() so that
+        the observation is enriched with source, run_id, entities,
+        and tags automatically.
+        """
         try:
-            valence = gm.Valence.POSITIVE if success else gm.Valence.NEGATIVE
-            obs = gm.Observation(
-                capability=self.capability,
-                description=f"Task: {query}\nResponse: {output}",
-                valence=valence,
-                metric_name=metric_name,
-                metric_value=metric_value,
-            )
-            _run_sync(self._ganglion_loop.assimilate(obs))
+            # Set entities from the query so the stored belief is
+            # retrievable by future queries about similar concepts
+            self._ganglion_agent.entities = _extract_entities(query)
+            if tags:
+                self._ganglion_agent.tags = tags
+
+            result: Dict[str, Any] = {
+                "success": success,
+                "description": f"Task: {query}\nResponse: {output}",
+            }
+            if metric_name is not None:
+                result["metric_name"] = metric_name
+            if metric_value is not None:
+                result["metric_value"] = metric_value
+
+            _run_sync(self._ganglion_agent.learn(result))
         except Exception as e:
             logger.warning(f"Ganglion assimilate failed: {e}")
 
@@ -283,7 +322,10 @@ class GanglionAgent(BaseAgent):
             self.successful_tasks += 1
 
         # 6. Feed into ganglion
-        self._assimilate(query, output, state.is_successful)
+        self._assimilate(
+            query, output, state.is_successful,
+            tags=("single_turn",),
+        )
 
         # 7. Store in Evo-Memory (evolve)
         self.evolve(state)
@@ -404,6 +446,7 @@ class GanglionAgent(BaseAgent):
                         success=reward > 0,
                         metric_name="step_reward",
                         metric_value=float(reward),
+                        tags=("multi_turn", "step"),
                     )
 
                 if done:
@@ -426,6 +469,7 @@ class GanglionAgent(BaseAgent):
             goal, state.feedback, success,
             metric_name="task_progress",
             metric_value=progress,
+            tags=("multi_turn", "outcome"),
         )
 
         # Evolve Evo-Memory
