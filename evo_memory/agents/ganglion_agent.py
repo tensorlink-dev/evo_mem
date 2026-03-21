@@ -177,7 +177,15 @@ class GanglionAgent(BaseAgent):
         """Format ganglion beliefs into a prompt section."""
         return beliefs.strip() if beliefs else ""
 
-    def _assimilate(self, query: str, output: str, success: bool):
+    def _assimilate(
+        self,
+        query: str,
+        output: str,
+        success: bool,
+        *,
+        metric_name: Optional[str] = None,
+        metric_value: Optional[float] = None,
+    ):
         """Feed outcome back into ganglion for Hebbian learning."""
         gm = _import_ganglion()
         try:
@@ -186,6 +194,8 @@ class GanglionAgent(BaseAgent):
                 capability=self.capability,
                 description=f"Task: {query}\nResponse: {output}",
                 valence=valence,
+                metric_name=metric_name,
+                metric_value=metric_value,
             )
             _run_sync(self._ganglion_loop.assimilate(obs))
         except Exception as e:
@@ -385,6 +395,17 @@ class GanglionAgent(BaseAgent):
                 if "progress" in info:
                     progress = info["progress"]
 
+                # Per-step assimilation: teach ganglion which actions
+                # produce reward so beliefs form during the task
+                if reward != 0:
+                    self._assimilate(
+                        query=f"{goal} | action: {action.content}",
+                        output=observation,
+                        success=reward > 0,
+                        metric_name="step_reward",
+                        metric_value=float(reward),
+                    )
+
                 if done:
                     success = info.get("success", False)
                     break
@@ -400,8 +421,12 @@ class GanglionAgent(BaseAgent):
         if success:
             self.successful_tasks += 1
 
-        # Feed into ganglion
-        self._assimilate(goal, state.feedback, success)
+        # Feed final outcome into ganglion
+        self._assimilate(
+            goal, state.feedback, success,
+            metric_name="task_progress",
+            metric_value=progress,
+        )
 
         # Evolve Evo-Memory
         self.evolve(state)
