@@ -75,6 +75,71 @@ def _import_ganglion():
         )
 
 
+class _EmbeddingBackend:
+    """Wraps SqliteMemoryBackend with embedding-based find_similar().
+
+    Delegates all CRUD to the inner backend but replaces token-level
+    Jaccard with cosine similarity over the evo_mem retriever's
+    sentence-transformer model (BAAI/bge-base-en-v1.5 by default).
+    This avoids loading a second embedding model.
+    """
+
+    def __init__(self, inner, retriever: "Retriever"):
+        self._inner = inner
+        self._retriever = retriever
+
+    # -- Delegate CRUD to inner backend ------------------------------------
+
+    async def store(self, belief):
+        return await self._inner.store(belief)
+
+    async def update(self, belief):
+        return await self._inner.update(belief)
+
+    async def remove(self, belief):
+        return await self._inner.remove(belief)
+
+    async def query(self, **kwargs):
+        return await self._inner.query(**kwargs)
+
+    async def all_beliefs(self):
+        return await self._inner.all_beliefs()
+
+    # -- Embedding-based similarity ----------------------------------------
+
+    def _cosine_sim(self, a: List[float], b: List[float]) -> float:
+        import numpy as np
+        a_arr, b_arr = np.asarray(a), np.asarray(b)
+        denom = (np.linalg.norm(a_arr) * np.linalg.norm(b_arr))
+        if denom == 0:
+            return 0.0
+        return float(np.dot(a_arr, b_arr) / denom)
+
+    async def find_similar(self, observation, threshold=0.85):
+        """Find most similar belief using embedding cosine similarity."""
+        try:
+            obs_emb = self._retriever.encode(observation.description)
+        except Exception:
+            # Fall back to inner backend if encoding fails
+            return await self._inner.find_similar(observation, threshold)
+
+        rows = await self._inner.query(
+            capability=observation.capability, limit=100,
+        )
+
+        best_match = None
+        best_score = 0.0
+
+        for belief in rows:
+            belief_emb = self._retriever.encode(belief.description)
+            score = self._cosine_sim(obs_emb, belief_emb)
+            if score >= threshold and score > best_score:
+                best_score = score
+                best_match = belief
+
+        return best_match
+
+
 class GanglionAgent(BaseAgent):
     """
     Ganglion biological-memory agent.
@@ -165,11 +230,16 @@ class GanglionAgent(BaseAgent):
     def _init_ganglion(self):
         """Initialise the ganglion memory system."""
         gm = _import_ganglion()
-        backend = gm.SqliteMemoryBackend(self.db_path)
+        sqlite_backend = gm.SqliteMemoryBackend(self.db_path)
+
+        # Wrap with embedding-based find_similar() that reuses the
+        # retriever's sentence-transformer model instead of Jaccard.
+        backend = _EmbeddingBackend(sqlite_backend, self.retriever)
+
         # Pass relevance_threshold only if the installed ganglion supports it
         import dataclasses
         loop_fields = {f.name for f in dataclasses.fields(gm.MemoryLoop)}
-        loop_kwargs = {"backend": backend}
+        loop_kwargs: Dict[str, Any] = {"backend": backend}
         if "relevance_threshold" in loop_fields:
             loop_kwargs["relevance_threshold"] = self.relevance_threshold
         self._ganglion_loop = gm.MemoryLoop(**loop_kwargs)
