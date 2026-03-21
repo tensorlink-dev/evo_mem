@@ -19,7 +19,6 @@ even when the package is not installed.
 from typing import Tuple, Optional, List, Dict, Any
 import asyncio
 import logging
-import re
 
 from .base import BaseAgent, AgentState, AgentAction, ActionType
 from ..memory import Memory, MemoryEntry, Retriever, ContextBuilder
@@ -31,23 +30,10 @@ logger = logging.getLogger(__name__)
 
 
 def _extract_entities(text: str) -> tuple:
-    """Extract key noun-phrase tokens from text for ganglion entity matching.
-
-    Uses simple heuristics: lowercased alphanumeric tokens ≥3 chars,
-    excluding common stop words.  This feeds ganglion's Jaccard-based
-    similarity so beliefs about related concepts can be retrieved.
-    """
-    _STOP = frozenset({
-        "the", "and", "for", "are", "but", "not", "you", "all", "can",
-        "had", "her", "was", "one", "our", "out", "has", "his", "how",
-        "its", "may", "new", "now", "old", "see", "way", "who", "did",
-        "get", "let", "say", "she", "too", "use", "what", "with", "this",
-        "that", "from", "they", "been", "have", "many", "some", "them",
-        "than", "each", "make", "like", "into", "over", "such", "take",
-        "task", "action", "step", "turn", "response", "answer", "final",
-    })
-    tokens = re.findall(r"[a-z0-9]+", text.lower())
-    return tuple(t for t in dict.fromkeys(tokens) if len(t) >= 3 and t not in _STOP)
+    """Extract capitalised terms from text as ganglion entities."""
+    words = text.split()
+    entities = [w.strip(".,;:!?") for w in words if len(w) > 2 and w[0].isupper()]
+    return tuple(dict.fromkeys(entities))[:5]
 
 
 def _run_sync(coro):
@@ -73,71 +59,6 @@ def _import_ganglion():
             "ganglion package is required for GanglionAgent. "
             "Install with: pip install git+https://github.com/TensorLink-AI/ganglion-memory.git"
         )
-
-
-class _EmbeddingBackend:
-    """Wraps SqliteMemoryBackend with embedding-based find_similar().
-
-    Delegates all CRUD to the inner backend but replaces token-level
-    Jaccard with cosine similarity over the evo_mem retriever's
-    sentence-transformer model (BAAI/bge-base-en-v1.5 by default).
-    This avoids loading a second embedding model.
-    """
-
-    def __init__(self, inner, retriever: "Retriever"):
-        self._inner = inner
-        self._retriever = retriever
-
-    # -- Delegate CRUD to inner backend ------------------------------------
-
-    async def store(self, belief):
-        return await self._inner.store(belief)
-
-    async def update(self, belief):
-        return await self._inner.update(belief)
-
-    async def remove(self, belief):
-        return await self._inner.remove(belief)
-
-    async def query(self, **kwargs):
-        return await self._inner.query(**kwargs)
-
-    async def all_beliefs(self):
-        return await self._inner.all_beliefs()
-
-    # -- Embedding-based similarity ----------------------------------------
-
-    def _cosine_sim(self, a: List[float], b: List[float]) -> float:
-        import numpy as np
-        a_arr, b_arr = np.asarray(a), np.asarray(b)
-        denom = (np.linalg.norm(a_arr) * np.linalg.norm(b_arr))
-        if denom == 0:
-            return 0.0
-        return float(np.dot(a_arr, b_arr) / denom)
-
-    async def find_similar(self, observation, threshold=0.85):
-        """Find most similar belief using embedding cosine similarity."""
-        try:
-            obs_emb = self._retriever.encode(observation.description)
-        except Exception:
-            # Fall back to inner backend if encoding fails
-            return await self._inner.find_similar(observation, threshold)
-
-        rows = await self._inner.query(
-            capability=observation.capability, limit=100,
-        )
-
-        best_match = None
-        best_score = 0.0
-
-        for belief in rows:
-            belief_emb = self._retriever.encode(belief.description)
-            score = self._cosine_sim(obs_emb, belief_emb)
-            if score >= threshold and score > best_score:
-                best_score = score
-                best_match = belief
-
-        return best_match
 
 
 class GanglionAgent(BaseAgent):
@@ -230,18 +151,21 @@ class GanglionAgent(BaseAgent):
     def _init_ganglion(self):
         """Initialise the ganglion memory system."""
         gm = _import_ganglion()
-        sqlite_backend = gm.SqliteMemoryBackend(self.db_path)
+        backend = gm.SqliteMemoryBackend(self.db_path)
 
-        # Wrap with embedding-based find_similar() that reuses the
-        # retriever's sentence-transformer model instead of Jaccard.
-        backend = _EmbeddingBackend(sqlite_backend, self.retriever)
+        # Reuse evo_mem's retriever model as ganglion's embedder via
+        # CallableEmbedder so we don't load a second sentence-transformer.
+        embedder = None
+        if hasattr(self.retriever, "encode"):
+            async def _embed_fn(text: str) -> list:
+                return await asyncio.to_thread(self.retriever.encode, text)
+            embedder = gm.CallableEmbedder(_embed_fn)
 
-        # Pass relevance_threshold only if the installed ganglion supports it
-        import dataclasses
-        loop_fields = {f.name for f in dataclasses.fields(gm.MemoryLoop)}
-        loop_kwargs: Dict[str, Any] = {"backend": backend}
-        if "relevance_threshold" in loop_fields:
-            loop_kwargs["relevance_threshold"] = self.relevance_threshold
+        loop_kwargs: Dict[str, Any] = {
+            "backend": backend,
+            "embedder": embedder,
+            "relevance_threshold": self.relevance_threshold,
+        }
         self._ganglion_loop = gm.MemoryLoop(**loop_kwargs)
         self._ganglion_agent = gm.MemoryAgent(
             memory=self._ganglion_loop,
@@ -255,17 +179,10 @@ class GanglionAgent(BaseAgent):
     # ------------------------------------------------------------------
 
     def _query_beliefs(self, query: str) -> str:
-        """
-        Query ganglion for relevant beliefs.
-
-        Extracts entities from the query so that ganglion's Jaccard-
-        based similarity can match beliefs about related concepts.
-        Returns a formatted context string from the MemoryAgent.
-        """
+        """Query ganglion for relevant beliefs via embedding-ranked retrieval."""
         try:
-            # Set query-derived entities so context_for() filters by them
             self._ganglion_agent.entities = _extract_entities(query)
-            return _run_sync(self._ganglion_agent.remember())
+            return _run_sync(self._ganglion_agent.remember(query=query))
         except Exception as e:
             logger.debug(f"Ganglion recall failed (may be empty): {e}")
             return ""
@@ -284,31 +201,33 @@ class GanglionAgent(BaseAgent):
         metric_value: Optional[float] = None,
         tags: tuple = (),
     ):
-        """Feed outcome back into ganglion via MemoryAgent.learn().
+        """Feed outcome into ganglion via MemoryAgent.learn().
 
         Uses learn() instead of raw MemoryLoop.assimilate() so that
-        the observation is enriched with source, run_id, entities,
-        and tags automatically.
+        the observation is enriched with produced_with (dependency
+        chain), input_text, and output_text automatically.
         """
         try:
-            # Set entities from the query so the stored belief is
-            # retrievable by future queries about similar concepts
             self._ganglion_agent.entities = _extract_entities(query)
             if tags:
                 self._ganglion_agent.tags = tags
 
             result: Dict[str, Any] = {
                 "success": success,
-                "description": f"Task: {query}\nResponse: {output}",
+                "description": output[:500],
             }
             if metric_name is not None:
                 result["metric_name"] = metric_name
             if metric_value is not None:
                 result["metric_value"] = metric_value
 
-            _run_sync(self._ganglion_agent.learn(result))
+            _run_sync(self._ganglion_agent.learn(
+                result,
+                input_text=query[:500],
+                output_text=output[:500],
+            ))
         except Exception as e:
-            logger.warning(f"Ganglion assimilate failed: {e}")
+            logger.warning(f"Ganglion learn failed: {e}")
 
     def _snapshot_metrics(self, task_idx: int, beliefs_injected: bool):
         """Capture ganglion-specific metrics at this task step."""
