@@ -218,7 +218,17 @@ class ExperimentRunner:
         # Ganglion-specific defaults
         if self.config.agent_type == AgentType.GANGLION:
             kwargs.setdefault("db_path", ":memory:")
-            kwargs.setdefault("capability", "general problem-solving")
+            # Set capability based on dataset for targeted ganglion recall
+            capability_map = {
+                DatasetType.SCIENCEWORLD: "science experimentation",
+                DatasetType.JERICHO: "text adventure navigation",
+                DatasetType.MMLU_PRO: "question answering",
+                DatasetType.GPQA: "graduate-level reasoning",
+            }
+            kwargs.setdefault(
+                "capability",
+                capability_map.get(self.config.dataset_type, "general problem-solving"),
+            )
             kwargs.setdefault("store_successful_only", False)
 
         return agent_cls(
