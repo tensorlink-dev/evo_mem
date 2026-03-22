@@ -11,8 +11,6 @@ Usage:
 import os
 from typing import List, Dict, Optional, Any
 
-import httpx
-
 from .base import BaseLLM, LLMResponse
 
 
@@ -53,6 +51,7 @@ class ChutesLLM(BaseLLM):
         """Lazy load OpenAI client pointed at Chutes."""
         if self._client is None:
             try:
+                import httpx
                 from openai import OpenAI
                 self._client = OpenAI(
                     api_key=self.api_key,
