@@ -3,7 +3,11 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import List, Dict, Any, Optional
+import logging
+import random
 import time
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -36,9 +40,9 @@ class BaseLLM(ABC):
         temperature: float = 0.0,
         max_tokens: int = 4096,
         top_p: float = 1.0,
-        timeout: int = 120,
-        retry_attempts: int = 3,
-        retry_delay: float = 1.0,
+        timeout: int = 300,
+        retry_attempts: int = 6,
+        retry_delay: float = 2.0,
     ):
         """
         Initialize LLM.
@@ -146,7 +150,17 @@ class BaseLLM(ABC):
             except Exception as e:
                 last_error = e
                 if attempt < self.retry_attempts - 1:
-                    time.sleep(self.retry_delay * (attempt + 1))
+                    # Exponential backoff with jitter; longer wait for rate limits
+                    is_rate_limit = "429" in str(e) or "rate" in str(e).lower()
+                    base = self.retry_delay * (2 ** attempt)
+                    if is_rate_limit:
+                        base = max(base, 10.0)  # at least 10s for 429s
+                    wait = base + random.uniform(0, base * 0.5)
+                    logger.warning(
+                        "LLM request failed (attempt %d/%d): %s — retrying in %.1fs",
+                        attempt + 1, self.retry_attempts, type(e).__name__, wait,
+                    )
+                    time.sleep(wait)
 
         raise last_error
 

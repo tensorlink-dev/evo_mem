@@ -11,6 +11,8 @@ Usage:
 import os
 from typing import List, Dict, Optional, Any
 
+import httpx
+
 from .base import BaseLLM, LLMResponse
 
 
@@ -55,7 +57,13 @@ class ChutesLLM(BaseLLM):
                 self._client = OpenAI(
                     api_key=self.api_key,
                     base_url=self.api_base,
-                    timeout=self.timeout,
+                    timeout=httpx.Timeout(
+                        connect=30.0,
+                        read=self.timeout,     # 300s for slow LLM completions
+                        write=30.0,
+                        pool=30.0,
+                    ),
+                    max_retries=0,  # we handle retries in BaseLLM.chat()
                 )
             except ImportError:
                 raise ImportError(
