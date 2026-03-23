@@ -13,7 +13,7 @@ set -euo pipefail
 
 TASK_LIMIT="${TASK_LIMIT:-100}"
 NUM_STREAMS="${NUM_STREAMS:-3}"
-PARALLEL="${PARALLEL:-0}"
+PARALLEL="${PARALLEL:-1}"
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
 OUTPUT_BASE="results/scienceworld_${TIMESTAMP}"
 
@@ -73,7 +73,9 @@ launch() {
 }
 
 launch "[1/3] GanglionAgent (hybrid)"   ganglion   ganglion
+[ "${PARALLEL}" = "1" ] && sleep 3  # stagger to reduce initial burst
 launch "[2/3] ExpRAG baseline"           exprag     exprag
+[ "${PARALLEL}" = "1" ] && sleep 3
 launch "[3/3] History baseline"          exprecent  history
 
 # Wait for all background jobs and collect exit codes

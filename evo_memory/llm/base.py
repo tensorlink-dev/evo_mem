@@ -3,11 +3,47 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import List, Dict, Any, Optional
+import fcntl
 import logging
+import os
 import random
+import struct
+import tempfile
 import time
 
 logger = logging.getLogger(__name__)
+
+# Cross-process rate limiter using a shared lock file.
+# Ensures only one process hits the API at a time, with a minimum gap.
+_RATE_LOCK_PATH = os.path.join(tempfile.gettempdir(), "evo_mem_api.lock")
+_RATE_STAMP_PATH = os.path.join(tempfile.gettempdir(), "evo_mem_api.stamp")
+_MIN_REQUEST_GAP = float(os.environ.get("EVO_MIN_REQUEST_GAP", "1.0"))
+
+
+def _cross_process_throttle() -> None:
+    """Wait so that at most one API request fires per _MIN_REQUEST_GAP seconds
+    across all processes sharing the same lock file."""
+    if _MIN_REQUEST_GAP <= 0:
+        return
+    with open(_RATE_LOCK_PATH, "a+b") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        try:
+            # Read last request timestamp
+            try:
+                with open(_RATE_STAMP_PATH, "rb") as sf:
+                    last_ts = struct.unpack("d", sf.read(8))[0]
+            except (FileNotFoundError, struct.error):
+                last_ts = 0.0
+
+            elapsed = time.time() - last_ts
+            if elapsed < _MIN_REQUEST_GAP:
+                time.sleep(_MIN_REQUEST_GAP - elapsed)
+
+            # Write current timestamp
+            with open(_RATE_STAMP_PATH, "wb") as sf:
+                sf.write(struct.pack("d", time.time()))
+        finally:
+            fcntl.flock(lock, fcntl.LOCK_UN)
 
 
 @dataclass
@@ -136,6 +172,7 @@ class BaseLLM(ABC):
 
         for attempt in range(self.retry_attempts):
             try:
+                _cross_process_throttle()
                 start_time = time.time()
                 response = self._generate(messages, **kwargs)
                 response.latency = time.time() - start_time
