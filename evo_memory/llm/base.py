@@ -41,7 +41,7 @@ class BaseLLM(ABC):
         max_tokens: int = 4096,
         top_p: float = 1.0,
         timeout: int = 300,
-        retry_attempts: int = 6,
+        retry_attempts: int = 8,
         retry_delay: float = 2.0,
     ):
         """
@@ -154,7 +154,7 @@ class BaseLLM(ABC):
                     is_rate_limit = "429" in str(e) or "rate" in str(e).lower()
                     base = self.retry_delay * (2 ** attempt)
                     if is_rate_limit:
-                        base = max(base, 10.0)  # at least 10s for 429s
+                        base = max(base, 30.0)  # at least 30s for 429s
                     wait = base + random.uniform(0, base * 0.5)
                     logger.warning(
                         "LLM request failed (attempt %d/%d): %s — retrying in %.1fs",

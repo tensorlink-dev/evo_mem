@@ -13,7 +13,7 @@ set -euo pipefail
 
 TASK_LIMIT="${TASK_LIMIT:-100}"
 NUM_STREAMS="${NUM_STREAMS:-3}"
-PARALLEL="${PARALLEL:-1}"
+PARALLEL="${PARALLEL:-0}"
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
 OUTPUT_BASE="results/scienceworld_${TIMESTAMP}"
 
