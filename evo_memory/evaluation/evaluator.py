@@ -157,7 +157,16 @@ class Evaluator:
             memory_size = len(self.agent.memory) if self.agent.memory else 0
             memory_progression.append(memory_size)
 
-            # Log progress
+            # Per-task completion log
+            running_acc = sum(r.correct for r in task_results) / len(task_results)
+            status = "ok" if result.correct else "WRONG"
+            logger.info(
+                f"Task {idx + 1}/{len(tasks)} [{status}] "
+                f"accuracy={running_acc:.1%} mem={memory_size} "
+                f"id={task.task_id}"
+            )
+
+            # Detailed progress every 10 tasks
             if self.config.verbose and (idx + 1) % 10 == 0:
                 recent_acc = sum(r.correct for r in task_results[-10:]) / 10
                 logger.info(f"Progress: {idx + 1}/{len(tasks)}, Recent accuracy: {recent_acc:.2%}")

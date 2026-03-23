@@ -35,6 +35,8 @@ echo "=========================================="
 # Helper: run a single agent eval
 run_agent() {
     local label="$1" agent="$2" outdir="$3" logfile="$4"
+    local tag
+    tag=$(echo "${agent}" | tr '[:lower:]' '[:upper:]' | cut -c1-4)
     echo ">>> Starting ${label}..."
     python -m evo_memory.main run \
         --agent "${agent}" \
@@ -45,12 +47,14 @@ run_agent() {
         --num-streams "${NUM_STREAMS}" \
         --output-dir "${outdir}" \
         --seed 42 \
-        > "${logfile}" 2>&1
-    local rc=$?
+        2>&1 | tee "${logfile}" | \
+        grep --line-buffered -E '(Task [0-9]+/|Progress:|accuracy|ERROR|FAILED|finished|Starting eval)' | \
+        sed -u "s/^/[${tag}] /"
+    local rc=${PIPESTATUS[0]}
     if [ $rc -eq 0 ]; then
         echo ">>> ${label} finished successfully."
     else
-        echo ">>> ${label} FAILED (exit code ${rc}). See ${logfile}"
+        echo ">>> ${label} FAILED (exit code ${rc}). Full log: ${logfile}"
     fi
     return $rc
 }
